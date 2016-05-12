@@ -1,12 +1,15 @@
 package com.mycompany.myproject.impl.servlets;
 
 import com.day.cq.commons.ImageHelper;
+import com.day.cq.dam.api.Asset;
 import com.day.cq.wcm.commons.AbstractImageServlet;
 import com.day.cq.wcm.foundation.Image;
 import com.day.image.Layer;
 import org.apache.felix.scr.annotations.sling.SlingServlet;
 import org.apache.sling.api.SlingHttpServletRequest;
 import org.apache.sling.api.SlingHttpServletResponse;
+import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceUtil;
 import org.apache.sling.api.servlets.SlingSafeMethodsServlet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,19 +32,32 @@ public class UpsideDownImageServlet extends SlingSafeMethodsServlet{
     @Override
     protected void doGet(SlingHttpServletRequest request, SlingHttpServletResponse response) throws ServletException, IOException {
         logger.debug("UpsideDownImageServlet called!");
-        AbstractImageServlet.ImageContext imageContext = new AbstractImageServlet.ImageContext(request,
-                request.getContentType());
-        Image image = new Image(imageContext.resource);
-        if (!image.hasContent()) {
-            if (imageContext.defaultResource != null) {
-                image = new Image(imageContext.defaultResource);
-            } else {
+        Image image = null;
+        if (ResourceUtil.isNonExistingResource(request.getResource())){
+            Resource resource = request.getResourceResolver().
+                    getResource(request.getResource().getPath().replaceAll("\\.ud", ""));
+            if (ResourceUtil.isNonExistingResource(resource)){
                 response.sendError(HttpServletResponse.SC_NOT_FOUND);
                 return;
+            }else{
+                image = new Image(resource);
+                image.setFileReference(image.getPath());
             }
+        }else{
+            AbstractImageServlet.ImageContext imageContext = new AbstractImageServlet.ImageContext(request,
+                    request.getContentType());
+            image = new Image(imageContext.resource);
+            if (!image.hasContent()) {
+                if (imageContext.defaultResource != null) {
+                    image = new Image(imageContext.defaultResource);
+                } else {
+                    response.sendError(HttpServletResponse.SC_NOT_FOUND);
+                    return;
+                }
+            }
+            image.loadStyleData(imageContext.style);
         }
 
-        image.loadStyleData(imageContext.style);
 
         Layer layer = null;
         try {
